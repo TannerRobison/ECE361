@@ -1,0 +1,22 @@
+# full.txt: 18 different names, two more than a tally can hold
+# (TALLY_NAMES is 16). The 17th and 18th new names are refused, but a name
+# the tally already holds still counts after it is full.
+ev01
+ev02
+ev03
+ev04
+ev05
+ev06
+ev07
+ev08
+ev09
+ev10
+ev11
+ev12
+ev13
+ev14
+ev15
+ev16
+ev17
+ev18
+ev01

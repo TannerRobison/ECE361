@@ -1,0 +1,36 @@
+# door.txt: one day of events from the front-door sensor, one per line.
+# ./events skips blank lines and lines that start with #.
+
+# 07:00, leaving for class
+motion
+unlock
+door_open
+door_closed
+lock
+
+# 12:30, a delivery
+motion
+doorbell
+motion
+
+# 15:10, back home, and the door stays open too long
+motion
+unlock
+door_open
+door_open_alarm
+door_closed
+lock
+
+# 21:45, someone knocks; the sensor's long alarm name is 20 characters,
+# more than TALLY_LEN, so the tally refuses it
+motion
+knock
+door_left_open_alert
+knock
+unlock
+door_open
+door_closed
+lock
+
+# 23:59, the battery reports in
+battery_low
