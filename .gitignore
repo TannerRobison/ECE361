@@ -5,3 +5,7 @@ hw02/readings
 hw02/tests/test_stats
 hw04/events
 hw04/tests/test_tally
+hw05/lock
+hw05/tests/test_lock
+hw05/tests/test_check
+hw05/BONUS_WALKTHROUGH.md
