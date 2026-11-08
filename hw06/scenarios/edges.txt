@@ -1,0 +1,10 @@
+# edges.txt: the first line comes after tick 0, a switch above the four
+# that exist, and a long gap where the values hold.
+start 1798761599                # 2026-12-31 23:59:59 UTC: the date rolls over
+
+# ticks 0 to 2 have no line: the sensor keeps iom361's 23.5 C, 75 %RH
+3       30.0   60    0x0
+4       30.0   60    0x10       # switch 4 does not exist: cleared, no press
+5       30.0   60    0x18       # switch 3 pressed (switch 4 still cleared)
+6       30.0   60    0x0
+12      18.7   33.3  0x0        # ticks 7 to 11 hold the line for tick 6
