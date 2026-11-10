@@ -5,17 +5,18 @@
 #include "iom361_r4.h"
 #include "sensor.h"
 
-// should I put them here or in main??
-//  probably in main tbh
+// the AHT20 values are 20 bits wide, in bits 19..0 of their registers
+#define SENSOR_MASK 0xFFFFFu
 
-int read_sensor(uint32_t *base, reading_t *reading)
+int sensor_read(uint32_t *base, time_t now, reading_t *r)
 {
 	// input validation
-	if (base == NULL || reading == NULL) {
+	if (base == NULL || r == NULL) {
 		return -1;
 	}
 
-	// read the temperature and humidity registers
+	// read the temperature and humidity registers before touching *r,
+	//  so a failed read leaves it unchanged
 	int rc = 0;
 	uint32_t raw_temp = iom361_readReg(base, TEMP_REG, &rc);
 	if (rc != 0) {
@@ -26,19 +27,22 @@ int read_sensor(uint32_t *base, reading_t *reading)
 		return -1;
 	}
 
+	// keep only bits 19..0
+	raw_temp &= SENSOR_MASK;
+	raw_humidity &= SENSOR_MASK;
+
 	// convert to appropriate values, and store
 	// TEMPERATURE: ST / 2^20 * 200 - 50
 	// 1048576.0 is 2^20. Using floating-point ensures no integer
 	// truncation.
-	reading->temp = ((double)raw_temp / 1048576.0) * 200.0 - 50.0;
-	reading->temp = roundf(reading->temp * 10.0f) / 10.0f;
+	double temp_c = ((double)raw_temp / 1048576.0) * 200.0 - 50.0;
+	r->temp = (float)(round(temp_c * 10.0) / 10.0);
 
 	// HUMIDITY: SRH / 2^20 * 100
-	reading->humidity = ((double)raw_humidity / 1048576.0) * 100.0;
-	reading->humidity = roundf(reading->humidity * 10.0f) / 10.0f;
+	double rh_pct = ((double)raw_humidity / 1048576.0) * 100.0;
+	r->humidity = (float)(round(rh_pct * 10.0) / 10.0);
 
-	// get the time
-	time(&reading->time);
+	r->time = now;
 
 	return 0;
 }

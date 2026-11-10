@@ -11,8 +11,8 @@ typedef struct {
 } reading_t;
 
 // reads the temperature and humidity registers, converts to Celsius and %RH,
-//  and puts them in appropriate reading_t *reading members along with the time.
+//  rounded to 0.1, and puts them in *reading along with the timestamp now.
 //  Returns 0 on success, -1 on failure. *reading is unchanged on failure
-int read_sensor(uint32_t *base, reading_t *reading);
+int sensor_read(uint32_t *base, time_t now, reading_t *reading);
 
 #endif

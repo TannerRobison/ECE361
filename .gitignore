@@ -9,3 +9,10 @@ hw05/lock
 hw05/tests/test_lock
 hw05/tests/test_check
 hw05/BONUS_WALKTHROUGH.md
+project/incubator
+project/tests/test_sensor
+project/tests/test_status
+project/tests/test_store
+project/tests/test_fsm
+project/tests/test_clock
+project/WALKTHROUGH.md

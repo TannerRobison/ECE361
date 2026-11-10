@@ -90,10 +90,35 @@ TODO (week 5): ASCII drawing, or an image in the repository.
 
 ## 8. Where event detection lives
 
-The code that turns a reading and the switch register into events lives either in `fsm.c` or
-in `main.c`.
+The code that turns a reading and the switch register into events lives in `fsm.c`, next to the
+transition table and `fsm_step`. It is one function that takes the current state, the reading,
+the switch register for this tick and the last one, and the turn timer, and returns the set of
+events that fired as a bitmask, one bit per `event_t`. `main` then steps the state machine once
+for each event in the set, in enum order, which is priority order.
 
-TODO (week 5): which one, and why.
+I put it there for four reasons:
+
+1. **An event's meaning belongs with the table that uses it.** What `E_TEMP_REACHED` means
+   (37.2 °C), what makes a press (a 0 to 1 change), and when `E_TURN_DUE` and `E_TURN_DONE`
+   fire (240 and 6 ticks) are part of the state machine's definition, just like the
+   `event_t` enum and the table. With all of them in `fsm.c`, changing an event means
+   changing one file, and the table can be read with the definition of every event beside it.
+2. **It can be tested on its own.** The function only computes: it reads no registers,
+   prints nothing, and keeps no hidden state, because everything it needs is passed in. A unit
+   test can feed it any reading, any pair of switch values and any timer value, and check the
+   bits that come back, without iom361 and without running `main`. A test cannot call code
+   that is buried in the loop in `main.c`.
+3. **`main` stays the glue.** `main` owns the clock, the hardware and the replay: it reads the
+   sensor and the switches, passes them in, runs `fsm_step`, carries out the actions, and
+   writes the LEDs, the store and the stack. It never has to know what any threshold is.
+4. **Detection depends on the state.** The turn timer only means something in INCUBATE and
+   TURN. Knowledge about states already lives in `fsm.c`.
+
+The cost is that `main` must keep the previous switch register and the turn timer and pass
+them in on every tick, and that `fsm.h` includes `sensor.h` for `reading_t`. That include goes
+one way only: `sensor.h` never includes `fsm.h`. I accept both, because the alternative, the
+same values kept as `static` variables inside `fsm.c`, would make the function give different
+answers to the same arguments and make it much harder to test.
 
 ## 9. Decisions where a rule was silent
 
@@ -174,11 +199,98 @@ The store is a binary search tree behind an opaque type, ordered by relative hum
 to 1 %: 45.2 and 45.7 %RH have the same key. That example rules out rounding to the nearest
 percent, which would put 45.7 in step 46. The comparison is one function, `record_compare`.
 
-TODO (week 4): the `record_t` definition, the quantization formula, and what it does at exactly
-46.0 %RH.
+### `record_t`
 
-TODO (week 8): what the tree does with duplicate keys (a count, a list in each node, or a
-tie-break on the timestamp), and why.
+```c
+typedef struct {
+	reading_t reading;   /* timestamp (time_t), temperature in °C, humidity in %RH */
+	state_t state;       /* the state machine's state at that tick */
+	uint32_t status;     /* the status word (section 10) */
+} record_t;
+```
+
+The store keeps its own copy of each record, so the caller's record can be reused for the next
+tick as soon as `store_insert` returns.
+
+### Quantization
+
+The key is the humidity truncated to a whole percent:
+
+```c
+key = (int)rh;
+```
+
+Casting a float to `int` drops the fraction. Humidity is never negative, so this is the same as
+rounding down: 45.2 and 45.7 both give 45, and 45.9 gives 45.
+
+At exactly 46.0 %RH the key is 46: a boundary value starts the step above it, and 46.0 and 46.9
+share a key. That holds for real readings, not only in theory: `sensor.c` rounds every reading to
+0.1 %RH, and a whole number such as 46.0 is stored exactly in a `float`, so it never comes back as
+45.99999.
+
+The truncation is in one private function, `rh_key`, used by both `record_compare` and
+`store_find_by_key`, so the two can never disagree about which step a record is in.
+`record_compare` returns −1, 0 or 1 when the first record's key is less than, equal to, or greater
+than the second's.
+
+### The tree
+
+`store.c` defines two structs that no other file can see. A `struct node` holds one record and
+its `left` and `right` pointers. `struct store` holds the `root` pointer and a `count`, so that
+`store_count` is O(1) instead of a walk of the whole tree. An empty store has `root == NULL`.
+
+| Operation | How | Cost |
+|---|---|---|
+| `store_insert` | loop down from the root: left if smaller, right if equal or larger; link at the first `NULL` | O(h) |
+| `store_find_by_key` | the same path as insert; after a match, keep going right for duplicates | O(h) |
+| `store_walk` | recursive, in order: left subtree, this node, right subtree | O(n) |
+| `store_height` | recursive: 0 for `NULL`, else 1 + the taller side | O(n) |
+| `store_destroy` | recursive, post-order: both subtrees first, then the node, then the store | O(n) |
+| `store_count` | returns the stored count | O(1) |
+
+Here h is the tree's height. An empty tree has height 0, and one record has height 1.
+
+### Duplicate keys: equal keys go right
+
+A record whose key equals a node's key goes into that node's right subtree, exactly as if it were
+larger. Every node holds one record, and there is no special case for duplicates in the insert.
+
+I chose this over the other two options:
+
+- **A count in each node** loses information. Every record is a different tick with a different
+  timestamp, temperature and state, and the report needs all of them. A count can only say how
+  many readings there were, not which ones.
+- **A list in each node** keeps every record, but it adds a second structure, with its own
+  allocation and its own free, inside every node. That is more code and more ways to leak memory,
+  for no gain in what the store can answer.
+- **Equal keys go right** keeps every record, needs no extra code, and gives two useful
+  properties for free:
+  1. All records with the same key are in the right subtree of the first one, never in the
+     left, because the insert only ever sends an equal key right. `store_find_by_key` finds the
+     first match by the usual search, then keeps going right, and stops at `NULL`.
+  2. Records with the same key come out in insertion order, which is timestamp order, from both
+     `store_find_by_key` and `store_walk`. That is because each later duplicate is placed further
+     right than the earlier ones.
+
+The cost: this device makes many duplicates, because humidity changes slowly and a scenario can
+hold one value for hundreds of ticks. Each duplicate goes right of the last, so a long run of
+equal keys builds a chain, a tree with one node per level. Keys that only rise, or only fall, do
+the same. A chain of n records has height n, so insert and find become O(n), like a linked list,
+and the recursive walk, height and destroy go n calls deep. The unit tests show it on purpose:
+100 records with the same key, or with keys in increasing order, give height 100.
+
+I accept this. A scenario is a few hundred ticks, so the deepest chain is a few hundred nodes:
+fast enough, and nowhere near the stack limit for the recursion. A self-balancing tree (AVL or
+red-black) would keep the height near log₂ n, but it would roughly triple the size of `store.c`
+and is outside this course.
+
+### Tests
+
+`tests/test_store.c` covers `record_compare` on its own (the same 1 % step, neighboring steps, and
+46.0 on a boundary), insert into an empty tree, duplicates found in insertion order, a key that is
+not there, the in-order walk, count and height after 1, 2 and 100 inserts, `NULL` arguments, and
+destroying an empty tree. `make test` builds it with `-fsanitize=address,undefined`, so a leak or
+a use after free fails the run.
 
 ## 15. The stack (S1)
 

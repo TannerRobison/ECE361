@@ -1,0 +1,42 @@
+PASS: compare: 45.2 and 45.7 are the same step
+PASS: compare: 45.7 and 45.2 are the same step
+PASS: compare: 45.7 < 46.2 (neighboring steps)
+PASS: compare: 46.2 > 45.7 (neighboring steps)
+PASS: compare: 46.0 starts step 46, above 45.9
+PASS: compare: 46.0 and 46.9 are the same step
+PASS: empty: create returns a store
+PASS: empty: count is 0
+PASS: empty: height is 0
+PASS: empty: walk visits nothing
+PASS: empty: find returns 0
+PASS: empty: destroy an empty tree
+PASS: null: insert into NULL store fails
+PASS: null: insert NULL record fails
+PASS: null: failed inserts do not change count
+PASS: null: count of NULL store is 0
+PASS: null: height of NULL store is 0
+PASS: null: destroy NULL does nothing
+PASS: insert 1: returns 0
+PASS: insert 1: count is 1
+PASS: insert 1: height is 1
+PASS: insert 1: find key 52 returns 1
+PASS: insert 1: found the inserted record
+PASS: insert 2: count is 2
+PASS: insert 2: height is 2
+PASS: shape: count is 5
+PASS: shape: height is 3
+PASS: insert 100 sorted: count is 100
+PASS: insert 100 sorted: height is 100 (a chain)
+PASS: insert 100 equal: count is 100
+PASS: insert 100 equal: height is 100 (a chain)
+PASS: insert 100 equal: find returns all 100
+PASS: find dup: key 52 returns 3
+PASS: find dup: callback called 3 times
+PASS: find dup: all three found, in insertion order
+PASS: find missing: key 53 returns 0
+PASS: find missing: callback never called
+PASS: find missing: key below all returns 0
+PASS: find missing: key above all returns 0
+PASS: walk: visits all 7 records
+PASS: walk: records come out in key order
+PASS: walk: equal keys (55.0, 55.5) come out in insertion order
